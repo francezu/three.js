@@ -3,16 +3,22 @@ import * as fflate from '../libs/fflate.module.js';
 
 class USDZExporter {
 
+	constructor( anchoringType = 'face', planeAnchoringType = 'any' ) {
+
+		this.anchoringType = anchoringType; // face or plane
+		this.planeAnchoringType = planeAnchoringType; // any or horizontal
+
+	}
+
 	async parse( scene, options = {} ) {
 
 		options = Object.assign( {
 			ar: {
-				anchoring: { type: 'plane' },
-				planeAnchoring: { alignment: 'horizontal' }
+				anchoring: { type: this.anchoringType },
+				planeAnchoring: { alignment: this.planeAnchoringType }
 			},
 			quickLookCompatible: false,
 		}, options );
-
 		const files = {};
 		const modelFileName = 'model.usda';
 
@@ -50,7 +56,7 @@ class USDZExporter {
 
 					}
 
-					output += buildXform( object, geometry, material );
+					output += buildXform( object, geometry, material, this.anchoringType );
 
 				} else {
 
@@ -218,12 +224,29 @@ function buildUSDFileAsString( dataToInsert ) {
 
 // Xform
 
-function buildXform( object, geometry, material ) {
+function buildXform( object, geometry, material, anchoringType ) {
+
+	let matrix;
+	if ( anchoringType === 'plane' ) {
+
+		matrix = object.matrixWorld;
+
+	} else if ( anchoringType === 'face' ) {
+
+		matrix = object.matrix;
+		matrix.elements[ 13 ] = 0.035;
+		matrix.elements[ 14 ] = 0.06;
+
+	} else {
+
+		console.warn( 'THREE.USDZExporter: USDZ does not support anchoringType :' + anchoringType, object );
+
+	}
 
 	const name = 'Object_' + object.id;
-	const transform = buildMatrix( object.matrixWorld );
+	const transform = buildMatrix( matrix );
 
-	if ( object.matrixWorld.determinant() < 0 ) {
+	if ( matrix.determinant() < 0 ) {
 
 		console.warn( 'THREE.USDZExporter: USDZ does not support negative scales', object );
 
@@ -684,7 +707,7 @@ function buildCamera( camera ) {
 			float verticalAperture = ${ ( ( Math.abs( camera.top ) + Math.abs( camera.bottom ) ) * 10 ).toPrecision( PRECISION ) }
 			token projection = "orthographic"
 		}
-	
+
 	`;
 
 	} else {
@@ -701,7 +724,7 @@ function buildCamera( camera ) {
 			token projection = "perspective"
 			float verticalAperture = ${ camera.getFilmHeight().toPrecision( PRECISION ) }
 		}
-	
+
 	`;
 
 	}
